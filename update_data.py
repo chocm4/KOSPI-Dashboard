@@ -6,8 +6,16 @@ GitHub Actions 또는 로컬에서 수동 실행 모두 가능합니다.
 
 import json
 import os
+import subprocess
+import sys
 from datetime import datetime, timedelta
-import yfinance as yf
+
+try:
+    import yfinance as yf
+except ImportError:
+    print("[설치] yfinance 모듈이 없습니다. 자동 설치합니다...")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "yfinance", "pandas"])
+    import yfinance as yf
 
 
 # ── 설정 ───────────────────────────────────────────────────────────

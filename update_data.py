@@ -20,7 +20,7 @@ except ImportError:
 
 # ── 설정 ───────────────────────────────────────────────────────────
 TICKER      = "^KS11"          # KOSPI 티커
-PERIOD_DAYS = 1500             # 과거 몇 일치를 가져올지 (약 4년)
+PERIOD_DAYS = 15000            # 과거 몇 일치를 가져올지 (약 40년)
 OUTPUT_PATH = "docs/kospi_data.json"
 
 

@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KOSPI 분석 대시보드</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-annotation/3.0.1/chartjs-plugin-annotation.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap');
+
+:root {
+  --bg:#0a0e1a; --bg2:#0f1424; --bg3:#141929;
+  --border:#1e2640; --border2:#252d4a;
+  --accent:#3b82f6; --accent2:#60a5fa;
+  --gold:#f59e0b; --green:#10b981; --red:#ef4444;
+  --text:#e2e8f0; --text2:#94a3b8; --text3:#64748b;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans KR',sans-serif;min-height:100vh;}
+
+/* ── Header ── */
+.header{background:var(--bg2);border-bottom:1px solid var(--border);padding:16px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+.logo{font-family:'JetBrains Mono',monospace;font-weight:600;font-size:18px;color:var(--accent2);letter-spacing:-0.5px;}
+.logo span{color:var(--gold);}
+.tagline{font-size:12px;color:var(--text3);letter-spacing:.5px;margin-top:2px;}
+.last-update{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3);text-align:right;}
+.live-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);margin-right:5px;animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+
+/* ── Status Bar ── */
+.status-bar{background:var(--bg3);border-bottom:1px solid var(--border);padding:10px 28px;display:flex;gap:28px;flex-wrap:wrap;overflow-x:auto;}
+.stat-item{display:flex;flex-direction:column;gap:2px;min-width:80px;}
+.stat-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;white-space:nowrap;}
+.stat-value{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:600;}
+.bull{color:var(--green);} .bear{color:var(--red);} .neutral{color:var(--gold);}
+
+/* ── Layout ── */
+.main{padding:20px 28px;display:flex;flex-direction:column;gap:20px;}
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+.panel-header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+.panel-title{font-size:13px;font-weight:500;color:var(--text2);text-transform:uppercase;letter-spacing:.8px;display:flex;align-items:center;gap:8px;}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent);}
+.panel-body{padding:20px;}
+.row-2{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+@media(max-width:900px){.row-2{grid-template-columns:1fr;}}
+
+/* ── Controls ── */
+.ctrl-row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;}
+.ctrl-group{display:flex;flex-direction:column;gap:5px;}
+.ctrl-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;}
+select,input[type="number"],input[type="text"]{background:var(--bg3);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;padding:8px 11px;outline:none;transition:border-color .2s;}
+select:focus,input:focus{border-color:var(--accent);}
+select option{background:var(--bg3);}
+.btn{border:none;border-radius:8px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;font-size:13px;font-weight:500;padding:9px 18px;transition:all .2s;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-primary:hover{background:var(--accent2);transform:translateY(-1px);}
+.btn-ghost{background:var(--border2);color:var(--text2);}
+.btn-ghost:hover{background:var(--border);}
+
+/* ── Charts ── */
+.chart-wrap{position:relative;height:380px;}
+.chart-wrap-sm{position:relative;height:220px;}
+
+/* ── Fib table ── */
+.fib-table{width:100%;border-collapse:collapse;font-size:13px;}
+.fib-table th{text-align:left;padding:8px 12px;font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);border-bottom:1px solid var(--border);font-weight:500;}
+.fib-table td{padding:9px 12px;border-bottom:1px solid var(--border);}
+.fib-table tr:last-child td{border-bottom:none;}
+.fib-table tr:hover td{background:var(--bg3);}
+.tag{display:inline-block;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:500;font-family:'JetBrains Mono',monospace;}
+.tag-support{background:rgba(16,185,129,.15);color:var(--green);}
+.tag-resist{background:rgba(239,68,68,.15);color:var(--red);}
+.tag-current{background:rgba(59,130,246,.2);color:var(--accent2);}
+
+/* ── Market panel ── */
+.verdict{border-radius:12px;padding:18px 22px;display:flex;align-items:center;gap:16px;margin-bottom:20px;}
+.verdict.bull-v{background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);}
+.verdict.bear-v{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);}
+.verdict.neutral-v{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);}
+.verdict-icon{font-size:32px;}
+.verdict-main{font-size:16px;font-weight:700;margin-bottom:4px;}
+.verdict-sub{font-size:13px;color:var(--text2);}
+.indicator-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:12px;}
+.ind-card{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:5px;}
+.ind-card.bull-card{border-color:rgba(16,185,129,.3);}
+.ind-card.bear-card{border-color:rgba(239,68,68,.3);}
+.ind-card.neutral-card{border-color:rgba(245,158,11,.3);}
+.ind-title{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;}
+.ind-val{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;}
+.ind-desc{font-size:11px;color:var(--text2);}
+.ind-badge{display:inline-block;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;width:fit-content;}
+.badge-bull{background:rgba(16,185,129,.15);color:var(--green);}
+.badge-bear{background:rgba(239,68,68,.15);color:var(--red);}
+.badge-neutral{background:rgba(245,158,11,.15);color:var(--gold);}
+.progress-bar-bg{background:var(--border2);border-radius:4px;height:6px;overflow:hidden;margin:8px 0 4px;}
+.progress-bar-fill{height:100%;border-radius:4px;transition:width .6s ease;}
+.progress-meta{display:flex;justify-content:space-between;font-size:11px;color:var(--text2);}
+
+/* ── Divider row ── */
+.settings-divider{border-top:1px solid var(--border);margin-top:18px;padding-top:16px;}
+.section-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;}
+
+/* ── Loading / Error ── */
+.loading{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px;gap:14px;color:var(--text3);}
+.spinner{width:36px;height:36px;border:3px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.error-box{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:10px;padding:18px 22px;color:var(--red);font-size:13px;}
+.scroll-x{overflow-x:auto;}
+
+/* ── Range selector ── */
+.range-btns{display:flex;gap:4px;flex-wrap:wrap;}
+.range-btn{padding:5px 12px;border-radius:6px;font-size:11px;font-weight:500;cursor:pointer;border:1px solid var(--border2);background:transparent;color:var(--text3);transition:all .15s;font-family:'JetBrains Mono',monospace;}
+.range-btn:hover{border-color:var(--accent);color:var(--accent2);}
+.range-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+
+/* ── Fib legend ── */
+.fib-legend{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;}
+.fib-legend-item{display:flex;align-items:center;gap:4px;}
+.fib-swatch{width:9px;height:9px;border-radius:2px;}
+</style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<div class="header">
+  <div>
+    <div class="logo">KOSPI<span>.</span>ANALYZER</div>
+    <div class="tagline">피보나치 되돌림 · 강세/약세장 판단 모형 · yfinance 자동 업데이트</div>
+  </div>
+  <div class="last-update">
+    <span class="live-dot"></span><span id="lastUpdate">데이터 로딩 중…</span>
+  </div>
+</div>
+
+<!-- ── Status Bar ── -->
+<div class="status-bar">
+  <div class="stat-item"><div class="stat-label">현재가</div><div class="stat-value" id="sbPrice">—</div></div>
+  <div class="stat-item"><div class="stat-label">전일 대비</div><div class="stat-value" id="sbChange">—</div></div>
+  <div class="stat-item"><div class="stat-label">시장 국면</div><div class="stat-value" id="sbMarket">—</div></div>
+  <div class="stat-item"><div class="stat-label">고점 대비</div><div class="stat-value" id="sbFromHigh">—</div></div>
+  <div class="stat-item"><div class="stat-label">저점 대비</div><div class="stat-value" id="sbFromLow">—</div></div>
+  <div class="stat-item"><div class="stat-label">MA20</div><div class="stat-value" id="sbMA20">—</div></div>
+  <div class="stat-item"><div class="stat-label">MA60</div><div class="stat-value" id="sbMA60">—</div></div>
+  <div class="stat-item"><div class="stat-label">MA200</div><div class="stat-value" id="sbMA200">—</div></div>
+  <div class="stat-item"><div class="stat-label">RSI(14)</div><div class="stat-value" id="sbRSI">—</div></div>
+</div>
+
+<div class="main">
+
+  <!-- ① 컨트롤 패널 -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title"><span class="dot"></span>분석 설정</div>
+      <div id="dataStatus" style="font-size:12px;color:var(--text3)">데이터 로딩 중…</div>
+    </div>
+    <div class="panel-body">
+      <div class="ctrl-row">
+        <div class="ctrl-group">
+          <div class="ctrl-label">차트 기간</div>
+          <div class="range-btns" id="rangeBtns">
+            <button class="range-btn" onclick="setRange(60)">3M</button>
+            <button class="range-btn" onclick="setRange(130)">6M</button>
+            <button class="range-btn active" onclick="setRange(252)">1Y</button>
+            <button class="range-btn" onclick="setRange(504)">2Y</button>
+            <button class="range-btn" onclick="setRange(0)">전체</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-divider">
+        <div class="section-label">피보나치 설정</div>
+        <div class="ctrl-row">
+          <div class="ctrl-group">
+            <div class="ctrl-label">방향</div>
+            <select id="fibDir">
+              <option value="retrace">되돌림 (고점→저점 반등)</option>
+              <option value="extend">확장 (저점→고점 연장)</option>
+            </select>
+          </div>
+          <div class="ctrl-group">
+            <div class="ctrl-label">고점/저점 기준</div>
+            <select id="peakMode" onchange="toggleManual()">
+              <option value="auto">자동 (표시 기간 내 전체)</option>
+              <option value="recent52">최근 52주</option>
+              <option value="manual">수동 지정</option>
+            </select>
+          </div>
+          <div class="ctrl-group" id="manualHG" style="display:none">
+            <div class="ctrl-label">고점 직접 입력</div>
+            <input type="number" id="manualHigh" placeholder="3316.08" step="0.01">
+          </div>
+          <div class="ctrl-group" id="manualLG" style="display:none">
+            <div class="ctrl-label">저점 직접 입력</div>
+            <input type="number" id="manualLow" placeholder="1439.43" step="0.01">
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-divider">
+        <div class="section-label">강세/약세장 기준</div>
+        <div class="ctrl-row">
+          <div class="ctrl-group">
+            <div class="ctrl-label">약세장 임계값 (%)</div>
+            <input type="number" id="bearThr" value="20" min="5" max="50" step="1" style="width:110px">
+          </div>
+          <div class="ctrl-group">
+            <div class="ctrl-label">RSI 과매수</div>
+            <input type="number" id="rsiOB" value="70" min="60" max="90" step="1" style="width:110px">
+          </div>
+          <div class="ctrl-group">
+            <div class="ctrl-label">RSI 과매도</div>
+            <input type="number" id="rsiOS" value="30" min="10" max="40" step="1" style="width:110px">
+          </div>
+          <button class="btn btn-primary" onclick="runAnalysis()">▶ 분석 적용</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ② 메인 차트 -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title"><span class="dot" style="background:var(--gold);box-shadow:0 0 6px var(--gold)"></span>KOSPI 지수 · 피보나치 레벨</div>
+      <div class="fib-legend" id="fibLegend"></div>
+    </div>
+    <div class="panel-body">
+      <div class="chart-wrap" id="mainWrap">
+        <div class="loading"><div class="spinner"></div><span>데이터 로딩 중…</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ③ 피보나치 테이블 + RSI -->
+  <div class="row-2">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title"><span class="dot" style="background:var(--gold);box-shadow:0 0 6px var(--gold)"></span>피보나치 레벨 상세</div>
+      </div>
+      <div class="panel-body" id="fibTableWrap">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title"><span class="dot"></span>RSI (14일)</div>
+        <div id="rsiValue" style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text2)"></div>
+      </div>
+      <div class="panel-body">
+        <div class="chart-wrap-sm" id="rsiWrap">
+          <div class="loading"><div class="spinner"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ④ 강세/약세장 판단 -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title"><span class="dot" style="background:var(--green);box-shadow:0 0 6px var(--green)"></span>강세장 / 약세장 종합 판단</div>
+    </div>
+    <div class="panel-body" id="marketPanel">
+      <div class="loading"><div class="spinner"></div></div>
+    </div>
+  </div>
+
+  <!-- ⑤ 이동평균 차트 -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title"><span class="dot" style="background:var(--accent2);box-shadow:0 0 6px var(--accent2)"></span>이동평균선 (MA20 · MA60 · MA200)</div>
+    </div>
+    <div class="panel-body">
+      <div class="chart-wrap" id="maWrap">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<script>
+/* ================================================================
+   CONSTANTS
+================================================================ */
+const FIB_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0];
+const FIB_COLOR  = {0:'#ef4444',0.236:'#f97316',0.382:'#eab308',0.5:'#22c55e',0.618:'#3b82f6',0.786:'#8b5cf6',1.0:'#94a3b8'};
+const FIB_LABEL  = {0:'0%',0.236:'23.6%',0.382:'38.2%',0.5:'50%',0.618:'61.8%',0.786:'78.6%',1.0:'100%'};
+
+/* ================================================================
+   STATE
+================================================================ */
+let ALL_DATA = [];   // full dataset from JSON [{date,open,high,low,close,volume}]
+let VIEW_DATA = [];  // sliced by range
+let gRange = 252;
+let gChartMain=null, gChartRSI=null, gChartMA=null;
+
+/* ================================================================
+   LOAD DATA  —  kospi_data.json (same directory)
+================================================================ */
+async function loadData() {
+  try {
+    // 개발 환경(file://)에서는 JSON fetch가 막힐 수 있으므로 fallback 내장
+    const res = await fetch("kospi_data.json");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    ALL_DATA = json.data;
+
+    const meta = json.meta;
+    document.getElementById('dataStatus').textContent =
+      `✅ ${meta.count.toLocaleString()}건 · 업데이트: ${meta.updated_at.slice(0,10)}`;
+    document.getElementById('lastUpdate').innerHTML =
+      `<span class="live-dot"></span>최신: ${ALL_DATA[ALL_DATA.length-1].date} · yfinance 자동갱신`;
+  } catch(e) {
+    // JSON 없을 때: 내장 샘플 데이터로 동작
+    console.warn("kospi_data.json 없음, 내장 샘플 사용:", e.message);
+    ALL_DATA = SAMPLE_DATA;
+    document.getElementById('dataStatus').innerHTML =
+      `⚠ kospi_data.json 없음 — <b>샘플 데이터</b>로 표시 중 (GitHub Actions 실행 후 자동 갱신)`;
+    document.getElementById('lastUpdate').textContent =
+      `샘플 데이터 | ${ALL_DATA[ALL_DATA.length-1].date}`;
+  }
+  runAnalysis();
+}
+
+/* ================================================================
+   RANGE SELECT
+================================================================ */
+function setRange(n) {
+  gRange = n;
+  document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  runAnalysis();
+}
+
+/* ================================================================
+   TOGGLE MANUAL INPUTS
+================================================================ */
+function toggleManual() {
+  const m = document.getElementById('peakMode').value === 'manual';
+  document.getElementById('manualHG').style.display = m ? '' : 'none';
+  document.getElementById('manualLG').style.display = m ? '' : 'none';
+}
+
+/* ================================================================
+   MATHS
+================================================================ */
+function calcMA(arr, n) {
+  return arr.map((_,i) => {
+    if(i < n-1) return null;
+    return +(arr.slice(i-n+1, i+1).reduce((a,b)=>a+b,0)/n).toFixed(2);
+  });
+}
+
+function calcRSI(closes, n=14) {
+  const rsi = new Array(n).fill(null);
+  let g=0, l=0;
+  for(let i=1;i<=n;i++){ const d=closes[i]-closes[i-1]; if(d>0) g+=d; else l+=Math.abs(d); }
+  let ag=g/n, al=l/n;
+  rsi.push(al===0?100:+(100-100/(1+ag/al)).toFixed(2));
+  for(let i=n+1;i<closes.length;i++){
+    const d=closes[i]-closes[i-1];
+    ag=(ag*(n-1)+(d>0?d:0))/n; al=(al*(n-1)+(d<0?Math.abs(d):0))/n;
+    rsi.push(al===0?100:+(100-100/(1+ag/al)).toFixed(2));
+  }
+  return rsi;
+}
+
+function calcFib(high, low, dir) {
+  return FIB_LEVELS.map(f => ({
+    ratio: f,
+    price: dir==='retrace' ? +(low+(high-low)*f).toFixed(2) : +(high+(high-low)*f).toFixed(2),
+    label: FIB_LABEL[f],
+    color: FIB_COLOR[f],
+  }));
+}
+
+function fmtN(n, dec=2) {
+  if(n==null) return '—';
+  return n.toLocaleString('ko-KR', {minimumFractionDigits:dec, maximumFractionDigits:dec});
+}
+
+/* ================================================================
+   MAIN ANALYSIS
+================================================================ */
+function runAnalysis() {
+  if(!ALL_DATA.length) return;
+
+  // 1) Slice by range
+  VIEW_DATA = gRange === 0 ? ALL_DATA : ALL_DATA.slice(-gRange);
+  const closes = VIEW_DATA.map(d=>d.close);
+  const dates  = VIEW_DATA.map(d=>d.date);
+  const last   = closes[closes.length-1];
+  const prev   = closes.length>=2 ? closes[closes.length-2] : last;
+
+  // 2) High / Low
+  const mode = document.getElementById('peakMode').value;
+  let high, low;
+  if(mode==='manual'){
+    high = parseFloat(document.getElementById('manualHigh').value)||Math.max(...closes);
+    low  = parseFloat(document.getElementById('manualLow').value)||Math.min(...closes);
+  } else if(mode==='recent52'){
+    const s = closes.slice(-252);
+    high = Math.max(...s); low = Math.min(...s);
+  } else {
+    high = Math.max(...closes); low = Math.min(...closes);
+  }
+
+  // 3) MAs — use ALL_DATA for accuracy, then slice to VIEW length
+  const allCloses = ALL_DATA.map(d=>d.close);
+  const allMA20   = calcMA(allCloses, 20);
+  const allMA60   = calcMA(allCloses, 60);
+  const allMA200  = calcMA(allCloses, 200);
+  const allRSI    = calcRSI(allCloses, 14);
+
+  const viewStart = ALL_DATA.length - VIEW_DATA.length;
+  const ma20  = allMA20.slice(viewStart);
+  const ma60  = allMA60.slice(viewStart);
+  const ma200 = allMA200.slice(viewStart);
+  const rsi   = allRSI.slice(viewStart);
+
+  const lastMA20  = allMA20[allMA20.length-1];
+  const lastMA60  = allMA60[allMA60.length-1];
+  const lastMA200 = allMA200[allMA200.length-1];
+  const lastRSI   = allRSI[allRSI.length-1];
+
+  // 4) Fibonacci
+  const dir = document.getElementById('fibDir').value;
+  const fibLevels = calcFib(high, low, dir);
+
+  // 5) Market verdict
+  const bearThr = parseFloat(document.getElementById('bearThr').value)||20;
+  const rsiOB   = parseFloat(document.getElementById('rsiOB').value)||70;
+  const rsiOS   = parseFloat(document.getElementById('rsiOS').value)||30;
+
+  const fromHigh = ((last-high)/high*100);
+  const fromLow  = ((last-low)/low*100);
+  const is20Rule = fromHigh <= -bearThr;
+
+  const aboveMA20  = lastMA20  ? last>lastMA20  : null;
+  const aboveMA60  = lastMA60  ? last>lastMA60  : null;
+  const aboveMA200 = lastMA200 ? last>lastMA200 : null;
+  const ma20gtMA60  = (lastMA20&&lastMA60)   ? lastMA20>lastMA60   : null;
+  const ma60gtMA200 = (lastMA60&&lastMA200)  ? lastMA60>lastMA200  : null;
+
+  let bullScore=0, total=0;
+  const score = (cond, pts=1) => { total+=pts; if(cond===true) bullScore+=pts; };
+  score(!is20Rule);
+  if(aboveMA20!==null)  score(aboveMA20);
+  if(aboveMA60!==null)  score(aboveMA60);
+  if(aboveMA200!==null) score(aboveMA200,2); // MA200 가중치 2
+  if(ma20gtMA60!==null)  score(ma20gtMA60);
+  if(ma60gtMA200!==null) score(ma60gtMA200);
+  if(lastRSI!==null)     score(lastRSI>50);
+
+  const bullRatio = bullScore/total;
+  let verdict, cls;
+  if(bullRatio>=0.65){ verdict='강세장 (Bull Market)'; cls='bull'; }
+  else if(bullRatio<=0.35){ verdict='약세장 (Bear Market)'; cls='bear'; }
+  else { verdict='중립 / 전환 구간'; cls='neutral'; }
+
+  // ── Status Bar ──
+  document.getElementById('sbPrice').textContent = fmtN(last);
+  const chg = last-prev, pct = (chg/prev*100);
+  const chgEl = document.getElementById('sbChange');
+  chgEl.textContent = `${chg>=0?'+':''}${fmtN(chg)} (${pct>=0?'+':''}${pct.toFixed(2)}%)`;
+  chgEl.className = `stat-value ${chg>=0?'bull':'bear'}`;
+  const sbM = document.getElementById('sbMarket');
+  sbM.textContent = verdict.split(' ')[0]; sbM.className = `stat-value ${cls}`;
+  const fhEl = document.getElementById('sbFromHigh');
+  fhEl.textContent = fromHigh.toFixed(2)+'%'; fhEl.className = `stat-value ${fromHigh<=-bearThr?'bear':'neutral'}`;
+  document.getElementById('sbFromLow').textContent  = '+'+fromLow.toFixed(2)+'%';
+  document.getElementById('sbFromLow').className = 'stat-value bull';
+  document.getElementById('sbMA20').textContent  = lastMA20  ? fmtN(lastMA20,0)  : '—';
+  document.getElementById('sbMA60').textContent  = lastMA60  ? fmtN(lastMA60,0)  : '—';
+  document.getElementById('sbMA200').textContent = lastMA200 ? fmtN(lastMA200,0) : '—';
+  const rsiEl = document.getElementById('sbRSI');
+  rsiEl.textContent = lastRSI ? lastRSI.toFixed(1) : '—';
+  rsiEl.className = lastRSI ? `stat-value ${lastRSI>rsiOB?'bear':lastRSI<rsiOS?'bull':'neutral'}` : 'stat-value';
+
+  // ── Render ──
+  renderMain(dates, closes, fibLevels);
+  renderFibTable(fibLevels, last, high, low, fromHigh, fromLow);
+  renderRSI(dates, rsi, rsiOB, rsiOS);
+  renderMA(dates, closes, ma20, ma60, ma200);
+  renderMarket(verdict, cls, {
+    is20Rule, fromHigh, bullScore, total, bullRatio, bearThr,
+    aboveMA20, aboveMA60, aboveMA200, ma20gtMA60, ma60gtMA200,
+    lastRSI, rsiOB, rsiOS, lastMA20, lastMA60, lastMA200,
+    last, high, low
+  });
+}
+
+/* ================================================================
+   RENDER MAIN CHART
+================================================================ */
+function renderMain(dates, closes, fibLevels) {
+  const wrap = document.getElementById('mainWrap');
+  wrap.innerHTML = '<canvas id="mainCanvas"></canvas>';
+  const ctx = document.getElementById('mainCanvas').getContext('2d');
+
+  const annotations = {};
+  fibLevels.forEach(fl => {
+    annotations['f'+fl.ratio] = {
+      type:'line', scaleID:'y', value:fl.price,
+      borderColor: fl.color+'bb', borderWidth:1.2, borderDash:[5,4],
+      label:{
+        display:true,
+        content:`${fl.label}  ${fl.price.toLocaleString('ko-KR',{minimumFractionDigits:2})}`,
+        position:'end', backgroundColor:'rgba(10,14,26,0.85)',
+        color:fl.color, font:{size:10,family:'JetBrains Mono'}, padding:{x:6,y:3}
+      }
+    };
+  });
+
+  if(gChartMain) gChartMain.destroy();
+  gChartMain = new Chart(ctx, {
+    type:'line',
+    data:{
+      labels:dates,
+      datasets:[{
+        label:'KOSPI', data:closes,
+        borderColor:'#f59e0b', borderWidth:2,
+        pointRadius:0, pointHoverRadius:4, tension:0.1,
+        fill:{target:'origin', above:'rgba(245,158,11,0.04)'},
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        annotation:{annotations},
+        tooltip:{mode:'index',intersect:false,
+          backgroundColor:'#141929ee',
+          titleFont:{family:'JetBrains Mono',size:11},
+          bodyFont:{family:'JetBrains Mono',size:11},
+          borderColor:'#1e2640',borderWidth:1,
+          callbacks:{label:c=>`KOSPI: ${fmtN(c.parsed.y)}`}
+        }
+      },
+      scales:{
+        x:{ticks:{color:'#64748b',font:{size:10,family:'JetBrains Mono'},maxTicksLimit:10},grid:{color:'#1e2640'}},
+        y:{ticks:{color:'#64748b',font:{size:10,family:'JetBrains Mono'},callback:v=>v.toLocaleString()},grid:{color:'#1e2640'}}
+      }
+    }
+  });
+
+  // Legend
+  document.getElementById('fibLegend').innerHTML = fibLevels.map(fl=>
+    `<span class="fib-legend-item">
+      <span class="fib-swatch" style="background:${fl.color}"></span>
+      <span style="color:${fl.color};font-family:'JetBrains Mono',monospace">${fl.label}</span>
+    </span>`).join('');
+}
+
+/* ================================================================
+   RENDER FIB TABLE
+================================================================ */
+function renderFibTable(fibLevels, last, high, low, fromHigh, fromLow) {
+  const sorted = [...fibLevels].sort((a,b)=>b.price-a.price);
+  let rows = '';
+  sorted.forEach(fl => {
+    const dist = ((last-fl.price)/fl.price*100);
+    const isSupport = fl.price < last;
+    // Is current price between this and adjacent?
+    const below = sorted.find(x=>x.price<fl.price);
+    const isCurrent = below && last>=below.price && last<=fl.price;
+    rows += `<tr>
+      <td><span style="display:flex;align-items:center;gap:7px;">
+        <span style="width:9px;height:9px;border-radius:2px;background:${fl.color};flex-shrink:0"></span>
+        <span style="color:${fl.color};font-family:'JetBrains Mono',monospace;font-size:12px">${fl.label}</span>
+      </span></td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:13px">${fmtN(fl.price)}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:12px;color:${dist>0?'var(--green)':'var(--red)'}">${dist>=0?'+':''}${dist.toFixed(2)}%</td>
+      <td>${isCurrent
+        ? '<span class="tag tag-current">현재 구간</span>'
+        : `<span class="tag ${isSupport?'tag-support':'tag-resist'}">${isSupport?'지지':'저항'}</span>`}</td>
+    </tr>`;
+  });
+
+  document.getElementById('fibTableWrap').innerHTML = `
+    <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:14px;font-size:12px;color:var(--text2)">
+      <span>고점 <b style="color:var(--red);font-family:'JetBrains Mono',monospace">${fmtN(high)}</b></span>
+      <span>저점 <b style="color:var(--green);font-family:'JetBrains Mono',monospace">${fmtN(low)}</b></span>
+      <span>범위 <b style="color:var(--accent2);font-family:'JetBrains Mono',monospace">${fmtN(high-low)}</b></span>
+    </div>
+    <div class="scroll-x">
+    <table class="fib-table">
+      <thead><tr><th>레벨</th><th>가격</th><th>현재가 대비</th><th>역할</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
+}
+
+/* ================================================================
+   RENDER RSI
+================================================================ */
+function renderRSI(dates, rsi, ob, os) {
+  const wrap = document.getElementById('rsiWrap');
+  wrap.innerHTML = '<canvas id="rsiCanvas"></canvas>';
+  const ctx = document.getElementById('rsiCanvas').getContext('2d');
+  const last = rsi[rsi.length-1];
+  document.getElementById('rsiValue').textContent = last ?
+    `현재 ${last.toFixed(1)} — ${last>ob?'과매수':last<os?'과매도':last>50?'강세 모멘텀':'약세 모멘텀'}` : '';
+
+  if(gChartRSI) gChartRSI.destroy();
+  gChartRSI = new Chart(ctx, {
+    type:'line',
+    data:{labels:dates,datasets:[{
+      label:'RSI(14)', data:rsi,
+      borderColor:'#3b82f6', borderWidth:1.5,
+      pointRadius:0, tension:0.2, spanGaps:true,
+    }]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        annotation:{annotations:{
+          ob:{type:'line',scaleID:'y',value:ob,borderColor:'rgba(239,68,68,0.45)',borderWidth:1,borderDash:[4,3],
+              label:{display:true,content:`과매수(${ob})`,position:'end',backgroundColor:'transparent',color:'rgba(239,68,68,0.65)',font:{size:9,family:'JetBrains Mono'}}},
+          os:{type:'line',scaleID:'y',value:os,borderColor:'rgba(16,185,129,0.45)',borderWidth:1,borderDash:[4,3],
+              label:{display:true,content:`과매도(${os})`,position:'end',backgroundColor:'transparent',color:'rgba(16,185,129,0.65)',font:{size:9,family:'JetBrains Mono'}}},
+          mid:{type:'line',scaleID:'y',value:50,borderColor:'rgba(100,116,139,0.25)',borderWidth:1,borderDash:[2,4]},
+        }},
+        tooltip:{mode:'index',intersect:false,backgroundColor:'#141929ee',
+          titleFont:{family:'JetBrains Mono',size:10},bodyFont:{family:'JetBrains Mono',size:10},borderColor:'#1e2640',borderWidth:1}
+      },
+      scales:{
+        x:{ticks:{color:'#64748b',font:{size:10,family:'JetBrains Mono'},maxTicksLimit:8},grid:{color:'#1e2640'}},
+        y:{min:0,max:100,ticks:{color:'#64748b',font:{size:10,family:'JetBrains Mono'}},grid:{color:'#1e2640'}}
+      }
+    }
+  });
+}
+
+/* ================================================================
+   RENDER MA CHART
+================================================================ */
+function renderMA(dates, closes, ma20, ma60, ma200) {
+  const wrap = document.getElementById('maWrap');
+  wrap.innerHTML = '<canvas id="maCanvas"></canvas>';
+  const ctx = document.getElementById('maCanvas').getContext('2d');
+  if(gChartMA) gChartMA.destroy();
+  gChartMA = new Chart(ctx, {
+    type:'line',
+    data:{labels:dates,datasets:[
+      {label:'KOSPI', data:closes, borderColor:'rgba(245,158,11,0.45)',borderWidth:1.2,pointRadius:0,tension:0.1},
+      {label:'MA20',  data:ma20,   borderColor:'#22c55e',borderWidth:1.5,pointRadius:0,tension:0.1,spanGaps:true},
+      {label:'MA60',  data:ma60,   borderColor:'#3b82f6',borderWidth:1.5,pointRadius:0,tension:0.1,spanGaps:true},
+      {label:'MA200', data:ma200,  borderColor:'#ef4444',borderWidth:2,  pointRadius:0,tension:0.1,spanGaps:true},
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:true,labels:{color:'#94a3b8',font:{size:11,family:'JetBrains Mono'},usePointStyle:true,pointStyleWidth:10}},
+        tooltip:{mode:'index',intersect:false,backgroundColor:'#141929ee',
+          titleFont:{family:'JetBrains Mono',size:10},bodyFont:{family:'JetBrains Mono',size:10},borderColor:'#1e2640',borderWidth:1,
+          callbacks:{label:c=>`${c.dataset.label}: ${c.parsed.y?fmtN(c.parsed.y,0):'—'}`}
+        }
+      },
+      scales:{
+        x:{ticks:{color:'#64748b',font:{size:10,family:'JetBrains Mono'},maxTicksLimit:10},grid:{color:'#1e2640'}},
+        y:{ticks:{color:'#64748b',font:{size:10,family:'JetBrains Mono'},callback:v=>v.toLocaleString()},grid:{color:'#1e2640'}}
+      }
+    }
+  });
+}
+
+/* ================================================================
+   RENDER MARKET PANEL
+================================================================ */
+function renderMarket(verdict, cls, s) {
+  const icon = cls==='bull'?'🐂':cls==='bear'?'🐻':'⚖️';
+  const scoreColor = cls==='bull'?'var(--green)':cls==='bear'?'var(--red)':'var(--gold)';
+  const pct = Math.round(s.bullRatio*100);
+
+  const mkCard = (title, val, desc, badge, badgeText) => `
+    <div class="ind-card ${badge}-card">
+      <div class="ind-title">${title}</div>
+      <div class="ind-val" style="color:${badge==='bull'?'var(--green)':badge==='bear'?'var(--red)':'var(--gold)'}">${val}</div>
+      <div class="ind-desc">${desc}</div>
+      <div class="ind-badge badge-${badge}">${badgeText}</div>
+    </div>`;
+
+  const na = (cond, bT, beT, bLabel, beLabel, nLabel='계산 부족') =>
+    cond===null?['neutral',nLabel]:[cond?'bull':'bear', cond?bLabel:beLabel];
+
+  const [b1,l1] = na(null===s.is20Rule?null:true, 'bull','bear',
+    `강세장 구간`, `약세장 (≤-${s.bearThr}%)`);
+  const c20 = !s.is20Rule;
+
+  const cards = [
+    mkCard('20% 룰', s.fromHigh.toFixed(2)+'%', `고점 ${fmtN(s.high)} 대비`,
+      c20?'bull':'bear', c20?`강세장 구간`:`약세장 (≤-${s.bearThr}%)`),
+    mkCard('현재가 vs MA20',
+      s.aboveMA20===null?'데이터 부족':s.aboveMA20?'위(↑)':'아래(↓)',
+      s.lastMA20?`MA20: ${fmtN(s.lastMA20,0)}`:'20일 이평 데이터 부족',
+      s.aboveMA20===null?'neutral':s.aboveMA20?'bull':'bear',
+      s.aboveMA20===null?'계산 불가':s.aboveMA20?'단기 강세':'단기 약세'),
+    mkCard('현재가 vs MA60',
+      s.aboveMA60===null?'데이터 부족':s.aboveMA60?'위(↑)':'아래(↓)',
+      s.lastMA60?`MA60: ${fmtN(s.lastMA60,0)}`:'60일 이평 데이터 부족',
+      s.aboveMA60===null?'neutral':s.aboveMA60?'bull':'bear',
+      s.aboveMA60===null?'계산 불가':s.aboveMA60?'중기 강세':'중기 약세'),
+    mkCard('현재가 vs MA200',
+      s.aboveMA200===null?'데이터 부족':s.aboveMA200?'위(↑)':'아래(↓)',
+      s.lastMA200?`MA200: ${fmtN(s.lastMA200,0)}`:'200일 이평 데이터 부족',
+      s.aboveMA200===null?'neutral':s.aboveMA200?'bull':'bear',
+      s.aboveMA200===null?'계산 불가':s.aboveMA200?'장기 강세 (가중치×2)':'장기 약세 (가중치×2)'),
+    mkCard('MA20 vs MA60',
+      s.ma20gtMA60===null?'—':s.ma20gtMA60?'정배열':'역배열',
+      '단기 이평 > 중기 이평',
+      s.ma20gtMA60===null?'neutral':s.ma20gtMA60?'bull':'bear',
+      s.ma20gtMA60===null?'계산 불가':s.ma20gtMA60?'상승 배열':'하락 배열'),
+    mkCard('MA60 vs MA200',
+      s.ma60gtMA200===null?'—':s.ma60gtMA200?'골든크로스':'데드크로스',
+      '중기 이평 > 장기 이평',
+      s.ma60gtMA200===null?'neutral':s.ma60gtMA200?'bull':'bear',
+      s.ma60gtMA200===null?'계산 불가':s.ma60gtMA200?'골든크로스':'데드크로스'),
+    mkCard('RSI (14일)',
+      s.lastRSI?s.lastRSI.toFixed(1):'—',
+      s.lastRSI?(s.lastRSI>s.rsiOB?`과매수(>${s.rsiOB})`:s.lastRSI<s.rsiOS?`과매도(<${s.rsiOS})`:s.lastRSI>50?'강세 모멘텀':'약세 모멘텀'):'데이터 부족',
+      s.lastRSI===null?'neutral':s.lastRSI>50?'bull':'bear',
+      s.lastRSI===null?'계산 불가':s.lastRSI>s.rsiOB?'과매수':s.lastRSI<s.rsiOS?'과매도':s.lastRSI>50?'강세':'약세'),
+  ].join('');
+
+  document.getElementById('marketPanel').innerHTML = `
+    <div class="verdict ${cls}-v">
+      <div class="verdict-icon">${icon}</div>
+      <div>
+        <div class="verdict-main" style="color:${scoreColor}">${verdict}</div>
+        <div class="verdict-sub">종합 점수 ${s.bullScore}/${s.total} (${pct}%) · 기준: ≥65% 강세, ≤35% 약세 · MA200 가중치 ×2</div>
+      </div>
+    </div>
+    <div style="margin-bottom:22px">
+      <div class="progress-meta"><span style="color:var(--red)">약세</span><span style="color:${scoreColor};font-family:'JetBrains Mono',monospace">${pct}%</span><span style="color:var(--green)">강세</span></div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" style="width:${pct}%;background:${scoreColor}"></div>
+      </div>
+      <div style="position:relative;height:14px">
+        <div style="position:absolute;left:35%;transform:translateX(-50%);font-size:9px;color:var(--text3)">35%▲</div>
+        <div style="position:absolute;left:65%;transform:translateX(-50%);font-size:9px;color:var(--text3)">65%▲</div>
+      </div>
+    </div>
+    <div class="indicator-grid">${cards}</div>`;
+}
+
+/* ================================================================
+   BUILT-IN SAMPLE DATA (fallback when no JSON)
+================================================================ */
+const SAMPLE_DATA = [
+  {date:"2020-01-02",open:2195.55,high:2209.41,low:2183.75,close:2201.21,volume:0},
+  {date:"2020-02-03",open:2100.00,high:2115.00,low:2080.00,close:2087.84,volume:0},
+  {date:"2020-03-02",open:1980.00,high:1995.00,low:1950.00,close:1954.77,volume:0},
+  {date:"2020-03-19",open:1460.00,high:1480.00,low:1430.00,close:1439.43,volume:0},
+  {date:"2020-04-01",open:1680.00,high:1720.00,low:1670.00,close:1704.76,volume:0},
+  {date:"2020-05-04",open:1930.00,high:1960.00,low:1920.00,close:1947.56,volume:0},
+  {date:"2020-06-01",open:2080.00,high:2110.00,low:2070.00,close:2100.00,volume:0},
+  {date:"2020-07-01",open:2180.00,high:2215.00,low:2170.00,close:2200.00,volume:0},
+  {date:"2020-08-03",open:2310.00,high:2345.00,low:2295.00,close:2330.00,volume:0},
+  {date:"2020-09-01",open:2335.00,high:2350.00,low:2310.00,close:2327.89,volume:0},
+  {date:"2020-10-05",open:2280.00,high:2320.00,low:2270.00,close:2301.12,volume:0},
+  {date:"2020-11-02",open:2550.00,high:2610.00,low:2540.00,close:2591.34,volume:0},
+  {date:"2020-12-01",open:2700.00,high:2750.00,low:2690.00,close:2731.45,volume:0},
+  {date:"2021-01-04",open:2900.00,high:2960.00,low:2890.00,close:2944.45,volume:0},
+  {date:"2021-02-01",open:3070.00,high:3130.00,low:3060.00,close:3100.00,volume:0},
+  {date:"2021-03-01",open:3060.00,high:3090.00,low:3020.00,close:3040.12,volume:0},
+  {date:"2021-04-01",open:3150.00,high:3195.00,low:3140.00,close:3177.50,volume:0},
+  {date:"2021-06-01",open:3240.00,high:3285.00,low:3230.00,close:3269.33,volume:0},
+  {date:"2021-07-06",open:3290.00,high:3320.00,low:3250.00,close:3266.23,volume:0},
+  {date:"2021-08-02",open:3220.00,high:3250.00,low:3190.00,close:3202.32,volume:0},
+  {date:"2021-10-01",open:2990.00,high:3020.00,low:2960.00,close:2970.12,volume:0},
+  {date:"2021-12-01",open:2960.00,high:2995.00,low:2950.00,close:2977.65,volume:0},
+  {date:"2022-01-03",open:2990.00,high:3010.00,low:2970.00,close:2988.77,volume:0},
+  {date:"2022-02-01",open:2760.00,high:2790.00,low:2730.00,close:2747.00,volume:0},
+  {date:"2022-04-01",open:2720.00,high:2770.00,low:2700.00,close:2750.00,volume:0},
+  {date:"2022-06-01",open:2360.00,high:2390.00,low:2320.00,close:2332.64,volume:0},
+  {date:"2022-07-01",open:2430.00,high:2470.00,low:2420.00,close:2451.44,volume:0},
+  {date:"2022-09-01",open:2180.00,high:2210.00,low:2140.00,close:2155.49,volume:0},
+  {date:"2022-10-03",open:2210.00,high:2250.00,low:2200.00,close:2236.40,volume:0},
+  {date:"2022-12-01",open:2260.00,high:2290.00,low:2220.00,close:2236.40,volume:0},
+  {date:"2023-01-02",open:2450.00,high:2500.00,low:2440.00,close:2480.63,volume:0},
+  {date:"2023-03-02",open:2450.00,high:2490.00,low:2440.00,close:2476.86,volume:0},
+  {date:"2023-06-01",open:2540.00,high:2580.00,low:2530.00,close:2564.28,volume:0},
+  {date:"2023-07-03",open:2640.00,high:2680.00,low:2630.00,close:2668.32,volume:0},
+  {date:"2023-09-01",open:2490.00,high:2520.00,low:2455.00,close:2465.07,volume:0},
+  {date:"2023-12-01",open:2630.00,high:2670.00,low:2620.00,close:2655.28,volume:0},
+  {date:"2024-01-02",open:2680.00,high:2710.00,low:2660.00,close:2669.81,volume:0},
+  {date:"2024-03-01",open:2740.00,high:2780.00,low:2720.00,close:2750.05,volume:0},
+  {date:"2024-06-03",open:2730.00,high:2770.00,low:2720.00,close:2727.63,volume:0},
+  {date:"2024-09-02",open:2580.00,high:2620.00,low:2560.00,close:2576.88,volume:0},
+  {date:"2024-12-02",open:2460.00,high:2500.00,low:2440.00,close:2454.48,volume:0},
+];
+
+/* ================================================================
+   BOOT
+================================================================ */
+window.addEventListener('load', loadData);
+</script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+name: KOSPI 데이터 자동 업데이트
+
+on:
+  # 평일 오후 4시 30분 KST (= UTC 07:30) 자동 실행
+  # 장 마감(15:30) 후 데이터가 안정화되는 시간대
+  schedule:
+    - cron: "30 7 * * 1-5"
+
+  # 수동 실행 버튼 (GitHub Actions 탭에서 클릭 가능)
+  workflow_dispatch:
+    inputs:
+      period_days:
+        description: "수집 기간 (일수, 기본 1500)"
+        required: false
+        default: "1500"
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # docs/kospi_data.json 커밋 권한
+
+    steps:
+      # 1. 코드 체크아웃
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Python 환경 설정
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # 3. 의존성 설치 (캐시 활용)
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-yfinance
+
+      - name: Install dependencies
+        run: pip install yfinance pandas
+
+      # 4. 데이터 수집 스크립트 실행
+      - name: Fetch KOSPI data
+        run: |
+          DAYS=${{ github.event.inputs.period_days || '1500' }}
+          python update_data.py
+
+      # 5. 변경사항 커밋 & 푸시
+      - name: Commit and push updated data
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/kospi_data.json
+          # 데이터가 바뀐 경우에만 커밋
+          git diff --cached --quiet || \
+            git commit -m "chore: KOSPI 데이터 자동 업데이트 $(date -u +'%Y-%m-%d %H:%MUTC')"
+          git push

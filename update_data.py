@@ -5,6 +5,7 @@ GitHub Actions 또는 로컬에서 수동 실행 모두 가능합니다.
 """
 
 import json
+import math
 import os
 import subprocess
 import sys
@@ -64,6 +65,10 @@ def fetch_kospi(period_days: int = PERIOD_DAYS) -> list[dict]:
             high  = float(row.get("High",  close))
             low   = float(row.get("Low",   close))
             vol   = float(row.get("Volume", 0))
+
+            # NaN 포함 행 제외 (당일 미확정 데이터)
+            if any(math.isnan(v) for v in [close, open_, high, low]):
+                continue
 
             records.append({
                 "date":   date_str,
